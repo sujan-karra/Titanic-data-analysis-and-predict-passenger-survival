@@ -1,18 +1,14 @@
 import pandas as pd
-import sklearn
 import streamlit as st
 from sklearn.ensemble import RandomForestClassifier
 
 # ----------------------------------------------------
 # 1. Load and Prepare Data
 # ----------------------------------------------------
-# Cache the data loading so it doesn't reload on every click
 @st.cache_data
 def load_data():
-    # Replacing the Kaggle path with the direct URL for easy running anywhere
     url = "https://raw.githubusercontent.com/datasciencedojo/datasets/master/titanic.csv"
     df = pd.read_csv(url)
-    # Basic preprocessing for the model
     df["Age"] = df["Age"].fillna(df["Age"].median())
     df["Sex"] = df["Sex"].map({"male": 0, "female": 1})
     return df
@@ -21,24 +17,31 @@ def load_data():
 df = load_data()
 
 # ----------------------------------------------------
-# 2. Sidebar / Top Statistics (Your original logic)
+# 2. Sidebar Insights (Including Minor Specifics)
 # ----------------------------------------------------
 st.title("🚢 Titanic Survival Predictor")
 st.sidebar.header("Dataset Insights")
 
-# Calculating your exact metrics
+# Calculations
 survived_fraction = (df["Survived"] == 1).sum() / len(df)
-minors_fraction = (df["Age"] < 18).sum() / len(df)
+minors_df = df[df["Age"] < 18]
+minors_fraction = len(minors_df) / len(df)
 
+# Calculate how many minors actually survived in the training data
+minors_survival_rate = (minors_df["Survived"] == 1).sum() / len(minors_df)
+
+# Display stats
 st.sidebar.metric(
     label="Overall Survival Rate", value=f"{survived_fraction:.2%}"
 )
 st.sidebar.metric(label="Fraction of Minors", value=f"{minors_fraction:.2%}")
+st.sidebar.metric(
+    label="Minor Survival Rate (Actual)", value=f"{minors_survival_rate:.2%}"
+)
 
 # ----------------------------------------------------
-# 3. Train a Quick Model
+# 3. Train the Model
 # ----------------------------------------------------
-# Simple feature selection for demo purposes
 features = ["Pclass", "Sex", "Age", "SibSp", "Parch"]
 X = df[features]
 y = df["Survived"]
@@ -58,7 +61,9 @@ with col1:
         "Ticket Class (Pclass)", options=[1, 2, 3], index=2
     )
     gender = st.selectbox("Gender", options=["male", "female"])
-    age = st.slider("Age", min_value=0, max_value=100, value=25)
+
+    # Notice the age slider helps determine if they are a minor
+    age = st.slider("Age", min_value=0, max_value=100, value=12)
 
 with col2:
     sibsp = st.number_input(
@@ -71,10 +76,9 @@ with col2:
         "Number of Parents/Children Aboard (Parch)",
         min_value=0,
         max_value=10,
-        value=0,
+        value=1,
     )
 
-# Map gender text back to numeric for the model
 gender_numeric = 1 if gender == "female" else 0
 
 # Create input dataframe for prediction
@@ -90,6 +94,11 @@ if st.button("Predict Survival Status"):
     probability = model.predict_proba(input_data)[0][1]
 
     st.write("---")
+
+    # Dynamic messaging if the input age is a minor
+    if age < 18:
+        st.info(f"🧑 **Minor Passenger Detected** (Age: {age})")
+
     if prediction == 1:
         st.success(
             f"🎉 This passenger likely **SURVIVED**! (Chance: {probability:.1%})"
@@ -99,6 +108,9 @@ if st.button("Predict Survival Status"):
             f"😔 This passenger likely **DID NOT SURVIVE**. (Survival Chance: {probability:.1%})"
         )
 
-# Optional: Show raw data if the user wants to see it
-if st.checkbox("Show Raw Titanic Dataset"):
-    st.dataframe(df)
+# Optional: Show filtered data for minors
+if st.checkbox("Show Raw Data for Minors Only"):
+    # Convert Sex back to readable text for presentation
+    display_df = minors_df.copy()
+    display_df["Sex"] = display_df["Sex"].map({0: "male", 1: "female"})
+    st.dataframe(display_df)
