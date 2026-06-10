@@ -17,20 +17,16 @@ def load_data():
 df = load_data()
 
 # ----------------------------------------------------
-# 2. Sidebar Insights (Including Minor Specifics)
+# 2. Sidebar Insights
 # ----------------------------------------------------
 st.title("🚢 Titanic Survival Predictor")
 st.sidebar.header("Dataset Insights")
 
-# Calculations
 survived_fraction = (df["Survived"] == 1).sum() / len(df)
 minors_df = df[df["Age"] < 18]
 minors_fraction = len(minors_df) / len(df)
-
-# Calculate how many minors actually survived in the training data
 minors_survival_rate = (minors_df["Survived"] == 1).sum() / len(minors_df)
 
-# Display stats
 st.sidebar.metric(
     label="Overall Survival Rate", value=f"{survived_fraction:.2%}"
 )
@@ -50,9 +46,19 @@ model = RandomForestClassifier(random_state=42)
 model.fit(X, y)
 
 # ----------------------------------------------------
-# 4. User Input Interface
+# 4. New Option: Select Passenger Type
 # ----------------------------------------------------
-st.subheader("Enter Passenger Details to Predict Survival")
+st.subheader("Passenger Profile")
+
+# This radio button lets the user choose the category directly
+passenger_type = st.radio(
+    "Select Passenger Age Category:",
+    options=["Minor (Under 18)", "Adult (18+)"],
+    horizontal=True,
+)
+
+st.write("---")
+st.subheader("Fine-tune Passenger Details")
 
 col1, col2 = st.columns(2)
 
@@ -62,8 +68,15 @@ with col1:
     )
     gender = st.selectbox("Gender", options=["male", "female"])
 
-    # Notice the age slider helps determine if they are a minor
-    age = st.slider("Age", min_value=0, max_value=100, value=12)
+    # Dynamically adjust the slider ranges based on the user's selection above
+    if passenger_type == "Minor (Under 18)":
+        age = st.slider(
+            "Age (Locked to Minors)", min_value=0, max_value=17, value=10
+        )
+    else:
+        age = st.slider(
+            "Age (Locked to Adults)", min_value=18, max_value=100, value=30
+        )
 
 with col2:
     sibsp = st.number_input(
@@ -72,11 +85,13 @@ with col2:
         max_value=10,
         value=0,
     )
+    # Minors usually travel with parents, so we default this to 1 or 2 if "Minor" is selected
+    default_parch = 1 if passenger_type == "Minor (Under 18)" else 0
     parch = st.number_input(
         "Number of Parents/Children Aboard (Parch)",
         min_value=0,
         max_value=10,
-        value=1,
+        value=default_parch,
     )
 
 gender_numeric = 1 if gender == "female" else 0
@@ -95,9 +110,8 @@ if st.button("Predict Survival Status"):
 
     st.write("---")
 
-    # Dynamic messaging if the input age is a minor
-    if age < 18:
-        st.info(f"🧑 **Minor Passenger Detected** (Age: {age})")
+    if passenger_type == "Minor (Under 18)":
+        st.info(f"🧑 **Predicting for a Minor** (Age: {age})")
 
     if prediction == 1:
         st.success(
@@ -107,10 +121,3 @@ if st.button("Predict Survival Status"):
         st.error(
             f"😔 This passenger likely **DID NOT SURVIVE**. (Survival Chance: {probability:.1%})"
         )
-
-# Optional: Show filtered data for minors
-if st.checkbox("Show Raw Data for Minors Only"):
-    # Convert Sex back to readable text for presentation
-    display_df = minors_df.copy()
-    display_df["Sex"] = display_df["Sex"].map({0: "male", 1: "female"})
-    st.dataframe(display_df)
